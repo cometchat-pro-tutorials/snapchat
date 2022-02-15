@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   Alert,
   Image,
@@ -8,9 +8,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { CometChat } from '@cometchat-pro/react-native-chat';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { NavigationContainer } from '@react-navigation/native';
+import {CometChat} from '@cometchat-pro/react-native-chat';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import {NavigationContainer} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import CreateStory from './components/story/CreateStory';
@@ -19,7 +19,7 @@ import SignUp from './components/register/SignUp';
 import SuggestedFriends from './components/friend/SuggestedFriends';
 import Tabs from './components/navigation/Tabs';
 
-import { cometChatConfig } from './env';
+import {cometChatConfig} from './env';
 
 import Context from './context';
 
@@ -35,19 +35,21 @@ const App = () => {
   const initCometChat = async () => {
     const appID = `${cometChatConfig.cometChatAppId}`;
     const region = `${cometChatConfig.cometChatRegion}`;
-    const appSetting = new CometChat.AppSettingsBuilder().subscribePresenceForAllUsers().setRegion(region).build();
+    const appSetting = new CometChat.AppSettingsBuilder()
+      .subscribePresenceForAllUsers()
+      .setRegion(region)
+      .build();
     CometChat.init(appID, appSetting).then(
       () => {
         console.log('CometChat was initialized successfully');
       },
-      error => {
-      }
+      (error) => {},
     );
   };
 
   const initAuthenticatedUser = async () => {
     const authenticatedUser = await AsyncStorage.getItem('auth');
-    setUser(() => authenticatedUser ? JSON.parse(authenticatedUser) : null);
+    setUser(() => (authenticatedUser ? JSON.parse(authenticatedUser) : null));
   };
 
   useEffect(() => {
@@ -55,26 +57,22 @@ const App = () => {
     initAuthenticatedUser();
   }, []);
 
-  const goToSuggestedFriends = navigation => () => {
+  const goToSuggestedFriends = (navigation) => () => {
     navigation.navigate('SuggestedFriends');
   };
 
-  const goToCreateStory = navigation => () => {
+  const goToCreateStory = (navigation) => () => {
     navigation.navigate('CreateStory');
   };
 
-  const logout = navigation => () => {
-    Alert.alert(
-      "Confirm",
-      "Do you want to log out?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
-        { text: "OK", onPress: () => handleLogout(navigation) }
-      ]
-    );
+  const logout = (navigation) => () => {
+    Alert.alert('Confirm', 'Do you want to log out?', [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+      {text: 'OK', onPress: () => handleLogout(navigation)},
+    ]);
   };
 
   const handleLogout = (navigation) => {
@@ -82,9 +80,10 @@ const App = () => {
       () => {
         removeAuthedInfo();
         backToLogin(navigation);
-      }, error => {
-        console.log("Logout failed with exception:", { error });
-      }
+      },
+      (error) => {
+        console.log('Logout failed with exception:', {error});
+      },
     );
   };
 
@@ -93,46 +92,57 @@ const App = () => {
     setUser(null);
   };
 
-  const backToLogin = navigation => {
+  const backToLogin = (navigation) => {
     // reset routes history and back to the login page.
     navigation.reset({
       index: 0,
-      routes: [{ name: 'Login' }]
+      routes: [{name: 'Login'}],
     });
   };
 
   if (user) {
     return (
-      <Context.Provider value={{ user, setUser }}>
+      <Context.Provider value={{user, setUser}}>
         <NavigationContainer>
           <Stack.Navigator>
-            <Stack.Screen name="Home" component={Tabs} options={({ navigation }) => ({
-              headerTitle: () => (
-                <View>
-                  <Text style={styles.headerTitle}>Snapchat</Text>
-                </View>
-              ),
-              headerLeft: () => {
-                if (Platform.OS === 'ios') {
-                  return (
-                    <TouchableOpacity style={styles.container} onPress={goToSuggestedFriends(navigation)}>
-                      <Image source={addUser} style={styles.headerIcon} />
+            <Stack.Screen
+              name="Home"
+              component={Tabs}
+              options={({navigation}) => ({
+                headerTitle: () => (
+                  <View>
+                    <Text style={styles.headerTitle}>Snapchat</Text>
+                  </View>
+                ),
+                headerLeft: () => (
+                  <TouchableOpacity
+                    style={[
+                      styles.container,
+                      Platform.OS === 'android' ? styles.mgr8 : null,
+                    ]}
+                    onPress={goToSuggestedFriends(navigation)}>
+                    <Image source={addUser} style={styles.headerIcon} />
+                  </TouchableOpacity>
+                ),
+                headerRight: () => (
+                  <View style={styles.container}>
+                    <TouchableOpacity
+                      style={styles.headerGap}
+                      onPress={goToCreateStory(navigation)}>
+                      <Image source={plus} style={styles.headerIcon} />
                     </TouchableOpacity>
-                  );
-                }
-              },
-              headerRight: () => (
-                <View style={styles.container}>
-                  <TouchableOpacity style={styles.headerGap} onPress={goToCreateStory(navigation)}>
-                    <Image source={plus} style={styles.headerIcon} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={logout(navigation)}>
-                    <Image source={logOut} style={styles.headerIcon} />
-                  </TouchableOpacity>
-                </View>
-              )
-            })} />
-            <Stack.Screen name="SuggestedFriends" component={SuggestedFriends} options={{ title: 'Add Friends' }} />
+                    <TouchableOpacity onPress={logout(navigation)}>
+                      <Image source={logOut} style={styles.headerIcon} />
+                    </TouchableOpacity>
+                  </View>
+                ),
+              })}
+            />
+            <Stack.Screen
+              name="SuggestedFriends"
+              component={SuggestedFriends}
+              options={{title: 'Add Friends'}}
+            />
             <Stack.Screen name="CreateStory" component={CreateStory} />
           </Stack.Navigator>
         </NavigationContainer>
@@ -141,13 +151,10 @@ const App = () => {
   }
 
   return (
-    <Context.Provider value={{ user, setUser }}>
+    <Context.Provider value={{user, setUser}}>
       <NavigationContainer>
         <Stack.Navigator>
-          <Stack.Screen
-            name="Login"
-            component={Login}
-          />
+          <Stack.Screen name="Login" component={Login} />
           <Stack.Screen name="SignUp" component={SignUp} />
           <Stack.Screen name="Home" component={Tabs} />
         </Stack.Navigator>
@@ -159,7 +166,7 @@ const App = () => {
 const styles = StyleSheet.create({
   container: {
     display: 'flex',
-    flexDirection: 'row'
+    flexDirection: 'row',
   },
   headerGap: {
     marginHorizontal: 8,
@@ -171,7 +178,10 @@ const styles = StyleSheet.create({
   headerIcon: {
     height: 24,
     width: 24,
-  }
+  },
+  mgr8: {
+    marginRight: 8,
+  },
 });
 
 export default App;
