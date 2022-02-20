@@ -1,28 +1,31 @@
 import React, {useEffect, useState} from 'react';
-import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
+import {
+  Alert,
+  Image,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import {CometChat} from '@cometchat-pro/react-native-chat';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {NavigationContainer} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import CreateStory from './components/story/CreateStory';
 import Login from './components/login/Login';
 import SignUp from './components/register/SignUp';
-import Home from './components/home/Home';
-import Search from './components/search/Search';
-import CreateRoom from './components/room/CreateRoom';
-import RoomDetail from './components/room/RoomDetail';
-import Call from './components/call/Call';
-import Notifications from './components/notifications/Notifications';
+import SuggestedFriends from './components/friend/SuggestedFriends';
+import Tabs from './components/navigation/Tabs';
 
 import {cometChatConfig} from './env';
 
-import {showMessageWithActions} from './services/ui';
-
 import Context from './context';
 
-import Compass from './images/compass.svg';
-import Logout from './images/logout.svg';
-import Bell from './images/bell.svg';
+import logOut from './images/logout.png';
+import addUser from './images/add-user.png';
+import plus from './images/plus.png';
 
 const Stack = createNativeStackNavigator();
 
@@ -54,32 +57,34 @@ const App = () => {
     initAuthenticatedUser();
   }, []);
 
-  const search = (navigation) => () => {
-    navigation.navigate('Search');
+  const goToSuggestedFriends = (navigation) => () => {
+    navigation.navigate('SuggestedFriends');
   };
 
-  const notifications = (navigation) => () => {
-    navigation.navigate('Notifications');
+  const goToCreateStory = (navigation) => () => {
+    navigation.navigate('CreateStory');
   };
 
   const logout = (navigation) => () => {
-    showMessageWithActions({
-      title: 'Confirm',
-      message: 'Do you want to log out?',
-      actions: [
-        {text: 'Cancel'},
-        {text: 'OK', onPress: () => handleLogout(navigation)},
-      ],
-    });
+    Alert.alert('Confirm', 'Do you want to log out?', [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+      {text: 'OK', onPress: () => handleLogout(navigation)},
+    ]);
   };
 
-  const handleLogout = async (navigation) => {
-    await CometChat.logout();
-    removeAuthedInfo();
-    navigation.reset({
-      index: 0,
-      routes: [{name: 'Login'}],
-    });
+  const handleLogout = (navigation) => {
+    CometChat.logout().then(
+      () => {
+        removeAuthedInfo();
+        backToLogin(navigation);
+      },
+      (error) => {
+        console.log('Logout failed with exception:', {error});
+      },
+    );
   };
 
   const removeAuthedInfo = () => {
@@ -87,8 +92,12 @@ const App = () => {
     setUser(null);
   };
 
-  const leaveRoom = (navigation) => () => {
-    navigation.goBack();
+  const backToLogin = (navigation) => {
+    // reset routes history and back to the login page.
+    navigation.reset({
+      index: 0,
+      routes: [{name: 'Login'}],
+    });
   };
 
   if (user) {
@@ -98,74 +107,43 @@ const App = () => {
           <Stack.Navigator>
             <Stack.Screen
               name="Home"
-              component={Home}
+              component={Tabs}
               options={({navigation}) => ({
-                headerStyle: {
-                  backgroundColor: '#F1EFE3',
-                },
+                headerTitle: () => (
+                  <View>
+                    <Text style={styles.headerTitle}>Snapchat</Text>
+                  </View>
+                ),
                 headerLeft: () => (
-                  <TouchableOpacity onPress={search(navigation)}>
-                    <Compass width={36} height={36} />
+                  <TouchableOpacity
+                    style={[
+                      styles.container,
+                      Platform.OS === 'android' ? styles.mgr8 : null,
+                    ]}
+                    onPress={goToSuggestedFriends(navigation)}>
+                    <Image source={addUser} style={styles.headerIcon} />
                   </TouchableOpacity>
                 ),
                 headerRight: () => (
-                  <View style={styles.homeHeaderRight}>
+                  <View style={styles.container}>
                     <TouchableOpacity
-                      onPress={notifications(navigation)}
-                      style={styles.bellBtn}>
-                      <Bell width={24} height={24} />
+                      style={styles.headerGap}
+                      onPress={goToCreateStory(navigation)}>
+                      <Image source={plus} style={styles.headerIcon} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={logout(navigation)}>
-                      <Logout width={24} height={24} />
+                      <Image source={logOut} style={styles.headerIcon} />
                     </TouchableOpacity>
                   </View>
                 ),
               })}
             />
             <Stack.Screen
-              name="Search"
-              component={Search}
-              options={() => ({
-                headerStyle: {
-                  backgroundColor: '#F1EFE3',
-                },
-              })}
+              name="SuggestedFriends"
+              component={SuggestedFriends}
+              options={{title: 'Add Friends'}}
             />
-            <Stack.Screen
-              name="Create Room"
-              component={CreateRoom}
-              options={() => ({
-                headerStyle: {
-                  backgroundColor: '#F1EFE3',
-                },
-              })}
-            />
-            <Stack.Screen
-              name="Room Detail"
-              component={RoomDetail}
-              options={({navigation}) => ({
-                headerStyle: {
-                  backgroundColor: '#F1EFE3',
-                },
-                headerRight: () => (
-                  <View>
-                    <TouchableOpacity onPress={leaveRoom(navigation)}>
-                      <Text style={styles.leaveQuitelyTxt}>Leave Quitely</Text>
-                    </TouchableOpacity>
-                  </View>
-                ),
-              })}
-            />
-            <Stack.Screen name="Call" component={Call} />
-            <Stack.Screen
-              name="Notifications"
-              component={Notifications}
-              options={() => ({
-                headerStyle: {
-                  backgroundColor: '#F1EFE3',
-                },
-              })}
-            />
+            <Stack.Screen name="CreateStory" component={CreateStory} />
           </Stack.Navigator>
         </NavigationContainer>
       </Context.Provider>
@@ -178,7 +156,7 @@ const App = () => {
         <Stack.Navigator>
           <Stack.Screen name="Login" component={Login} />
           <Stack.Screen name="SignUp" component={SignUp} />
-          <Stack.Screen name="Home" component={Home} />
+          <Stack.Screen name="Home" component={Tabs} />
         </Stack.Navigator>
       </NavigationContainer>
     </Context.Provider>
@@ -186,15 +164,23 @@ const App = () => {
 };
 
 const styles = StyleSheet.create({
-  homeHeaderRight: {
+  container: {
+    display: 'flex',
     flexDirection: 'row',
   },
-  bellBtn: {
-    marginRight: 8,
+  headerGap: {
+    marginHorizontal: 8,
   },
-  leaveQuitelyTxt: {
+  headerTitle: {
+    fontSize: 24,
     fontWeight: 'bold',
-    fontSize: 16,
+  },
+  headerIcon: {
+    height: 24,
+    width: 24,
+  },
+  mgr8: {
+    marginRight: 8,
   },
 });
 

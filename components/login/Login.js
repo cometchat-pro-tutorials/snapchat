@@ -1,51 +1,63 @@
-import React, {useState, useContext, useEffect} from 'react';
+import React, { useState, useContext, useEffect } from 'react';
+import { CometChat } from '@cometchat-pro/react-native-chat';
 import {
   ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import {CometChat} from '@cometchat-pro/react-native-chat';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import validator from 'validator';
+import validator from "validator";
 
-import {cometChatConfig} from '../../env';
+import Context from "../../context";
 
-import Context from '../../context';
+import { cometChatConfig } from '../../env';
 
-import {getFirebaseData, signIn} from '../../services/firebase';
-import {showMessage} from '../../services/ui';
+import {
+  auth,
+  signInWithEmailAndPassword,
+} from "../../firebase";
 
-const Login = ({navigation}) => {
+import { getFirebaseData } from '../../services/common';
+
+const Login = props => {
+  const { navigation } = props;
+
+  const { setUser } = useContext(Context);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const {setUser} = useContext(Context);
-
   useEffect(() => {
     return () => {
       setIsLoading(false);
-    };
+    }
   }, []);
 
-  const onEmailChanged = (email) => {
+  const onEmailChanged = email => {
     setEmail(() => email);
   };
 
-  const onPasswordChanged = (password) => {
+  const onPasswordChanged = password => {
     setPassword(() => password);
   };
 
   const login = async () => {
     if (isUserCredentialsValid(email, password)) {
       setIsLoading(true);
-      const userCredential = await signIn(email, password);
-      if (!userCredential) return;
-      const userId = userCredential.user.uid;
-      await loginCometChat(userId);
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        if (!userCredential) return;
+        const userId = userCredential.user.uid;
+        await loginCometChat(userId);
+      } catch (error) {
+        setIsLoading(false);
+        showMessage('Error', 'Your username or password is not correct');
+      }
     } else {
       setIsLoading(false);
       showMessage('Error', 'Your username or password is not correct');
@@ -56,44 +68,51 @@ const Login = ({navigation}) => {
     return validator.isEmail(email) && password;
   };
 
-  const loginCometChat = async (id) => {
+  const loginCometChat = async id => {
     if (!id) return;
-    const user = await CometChat.login(
-      id,
-      `${cometChatConfig.cometChatAuthKey}`,
-    );
-    if (user) {
-      const authenticatedUser = await getUser(id);
-      if (authenticatedUser) {
-        setIsLoading(false);
-        setUser(authenticatedUser);
-        saveAuthedInfo(authenticatedUser);
-        navigation.navigate('Home');
+    try {
+      const user = await CometChat.login(id, `${cometChatConfig.cometChatAuthKey}`);
+      if (user) {
+        const authenticatedUser = await getUser(id);
+        if (authenticatedUser) {
+          setIsLoading(false);
+          setUser(authenticatedUser);
+          saveAuthedInfo(authenticatedUser);
+          navigate('Home');
+        } else {
+          setIsLoading(false);
+          showMessage('Info', 'Cannot load the authenticated information, please try again');
+        }
       } else {
         setIsLoading(false);
-        showMessage(
-          'Info',
-          'Cannot load the authenticated information, please try again',
-        );
+        showMessage('Error', 'Your username or password is not correct');
       }
-    } else {
+    } catch (error) {
       setIsLoading(false);
       showMessage('Error', 'Your username or password is not correct');
     }
   };
 
-  const getUser = async (id) => {
+  const getUser = async id => {
     if (!id) {
       return null;
     }
-    return await getFirebaseData('users/', id);
+    return await getFirebaseData({ key: 'users/', id });
   };
 
-  const saveAuthedInfo = (authenticatedUser) => {
+  const saveAuthedInfo = authenticatedUser => {
     AsyncStorage.setItem('auth', JSON.stringify(authenticatedUser));
   };
 
-  const register = (route) => () => {
+  const showMessage = (title, message) => {
+    Alert.alert(title, message);
+  };
+
+  const register = route => () => {
+    navigate(route);
+  };
+
+  const navigate = route => {
     navigation.navigate(route);
   };
 
@@ -108,28 +127,28 @@ const Login = ({navigation}) => {
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
-        <Text style={styles.logoTitle}>Clubhouse</Text>
+        <Text style={styles.logoTitle}>Snapchat</Text>
       </View>
       <TextInput
-        autoCapitalize="none"
+        autoCapitalize='none'
         onChangeText={onEmailChanged}
         placeholder="Email"
         placeholderTextColor="#ccc"
-        style={styles.loginInput}
+        style={styles.input}
       />
       <TextInput
-        autoCapitalize="none"
+        autoCapitalize='none'
         onChangeText={onPasswordChanged}
         placeholder="Password"
         placeholderTextColor="#ccc"
         secureTextEntry
-        style={styles.loginInput}
+        style={styles.input}
       />
       <TouchableOpacity style={styles.loginBtn} onPress={login}>
-        <Text style={styles.loginTxt}>Login</Text>
+        <Text style={styles.loginLabel}>Login</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.registerBtn} onPress={register('SignUp')}>
-        <Text style={styles.registerTxt}>Register</Text>
+        <Text style={styles.registerLabel}>Register</Text>
       </TouchableOpacity>
     </View>
   );
@@ -140,18 +159,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     flex: 1,
     flexDirection: 'column',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
   logoContainer: {
     display: 'flex',
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
   logoTitle: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontWeight: 'bold'
   },
-  loginInput: {
+  input: {
     borderColor: '#ccc',
     borderRadius: 8,
     borderWidth: 1,
@@ -161,14 +180,14 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   loginBtn: {
-    backgroundColor: '#D9CCB9',
+    backgroundColor: '#FFFC00',
     borderRadius: 8,
     fontSize: 16,
     marginHorizontal: 24,
     marginVertical: 8,
     padding: 16,
   },
-  loginTxt: {
+  loginLabel: {
     color: '#000',
     fontWeight: 'bold',
     textAlign: 'center',
@@ -181,12 +200,12 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     padding: 8,
   },
-  registerTxt: {
+  registerLabel: {
     color: '#000',
     fontWeight: 'bold',
     textAlign: 'center',
-    textTransform: 'uppercase',
-  },
+    textTransform: 'uppercase'
+  }
 });
 
 export default Login;

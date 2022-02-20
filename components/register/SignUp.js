@@ -1,6 +1,9 @@
-import React, {useState, useRef} from 'react';
+import React, { useState, useRef } from 'react';
+import { CometChat } from '@cometchat-pro/react-native-chat';
+import { launchImageLibrary } from 'react-native-image-picker';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Platform,
   StyleSheet,
@@ -9,20 +12,20 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {CometChat} from '@cometchat-pro/react-native-chat';
-import {launchImageLibrary} from 'react-native-image-picker';
-import validator from 'validator';
+import validator from "validator";
 
-import {cometChatConfig} from '../../env';
+import { cometChatConfig } from '../../env';
 
 import {
-  insertFirebaseDatabase,
-  createUser,
-  uploadFile,
-} from '../../services/firebase';
-import {showMessage} from '../../services/ui';
+  auth,
+  createUserWithEmailAndPassword,
+  getDownloadURL,
+  storage,
+  storageRef,
+  uploadBytesResumable,
+} from "../../firebase";
 
-import ImageGallery from '../../images/image-gallery.svg';
+import { insertFirebaseDatabase } from '../../services/common';
 
 const SignUp = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -32,13 +35,11 @@ const SignUp = () => {
   const [password, setPassword] = useState('');
   const [userAvatar, setUserAvatar] = useState(null);
 
-  const createdAccount = useRef();
-
   const selectAvatar = () => {
     const options = {
-      mediaType: 'photo',
+      mediaType: 'photo'
     };
-    launchImageLibrary(options, async (response) => {
+    launchImageLibrary(options, async response => {
       if (response.didCancel) return null;
       if (response.assets && response.assets.length) {
         const uri = response.assets[0].uri;
@@ -48,7 +49,7 @@ const SignUp = () => {
           setUserAvatar(() => ({
             name: fileName,
             uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
-            type: type || 'video/quicktime',
+            type: type || 'video/quicktime'
           }));
         }
       }
@@ -72,29 +73,22 @@ const SignUp = () => {
   };
 
   const register = async () => {
-    if (isSignupValid({confirmPassword, email, fullname, password})) {
+    if (isSignupValid({ confirmPassword, email, fullname, password })) {
       setIsLoading(true);
-      const userCredential = await createUser(email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       if (userCredential) {
         const id = userCredential._tokenResponse.localId;
-        createdAccount.current = buildCreatedAccount({id, fullname, email});
-        await insertFirebaseDatabase({
-          key: 'users/',
-          id,
-          payload: createdAccount.current,
-        });
-        await uploadUserAvatar();
+        const createdAccount = buildCreatedAccount({ id, fullname, email });
+        await insertFirebaseDatabase({ key: 'users/', id, payload: createdAccount});
+        await uploadUserAvatar(createdAccount, onAvatarUploaded);
       } else {
         setIsLoading(false);
-        showMessage(
-          'Error',
-          'Fail to create your account, your account might be existed',
-        );
+        showMessage('Error', 'Fail to create your account, your account might be existed');
       }
     }
   };
 
-  const isSignupValid = ({confirmPassword, email, password, fullname}) => {
+  const isSignupValid = ({ confirmPassword, email, password, fullname }) => {
     if (!userAvatar) {
       showMessage('Error', 'Please upload your avatar');
       return false;
@@ -116,65 +110,66 @@ const SignUp = () => {
       return false;
     }
     if (password !== confirmPassword) {
-      showMessage(
-        'Error',
-        'Your confirm password must be matched with your password',
-      );
+      showMessage('Error', 'Your confirm password must be matched with your password');
       return false;
     }
     return true;
   };
 
-  const buildCreatedAccount = ({id, fullname, email}) => ({
-    id,
-    fullname,
-    email,
-  });
+  const buildCreatedAccount = ({ id, fullname, email }) => ({ id, fullname, email });
 
-  const uploadUserAvatar = async () => {
+  const uploadUserAvatar = async (createdAccount, onAvatarUploaded) => {
+    const storageImageRef = storageRef(storage, `users/${userAvatar.name}`);
     const localFile = await fetch(userAvatar.uri);
-    const blob = await localFile.blob();
-    await uploadFile({
-      fileRef: `users/${userAvatar.name}`,
-      blob,
-      contentType: userAvatar.type,
-      onError: onUploadAvatarError,
-      onSuccess: onUploadAvatarSuccess,
-    });
+    const fileBlob = await localFile.blob();
+    const uploadTask = uploadBytesResumable(storageImageRef, fileBlob, { contentType: userAvatar.type });
+    uploadTask.on('state_changed',
+      (snapshot) => {
+      },
+      (error) => {
+        setUserAvatar(null);
+      },
+      async () => {
+        const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+        if (downloadUrl) {
+          onAvatarUploaded(createdAccount, downloadUrl);
+        }
+      }
+    );
   };
 
-  const onUploadAvatarError = () => {
-    setUserAvatar(null);
-  };
-
-  const onUploadAvatarSuccess = (downloadUrl) => {
+  const onAvatarUploaded = (createdAccount, downloadUrl) => {
     if (!downloadUrl) return;
-    createdAccount.current.avatar = downloadUrl;
-    insertFirebaseDatabase({
-      key: 'users/',
-      id: createdAccount.current.id,
-      payload: createdAccount.current,
-    });
-    createCometChatAccount();
+    createdAccount.avatar = downloadUrl;
+    insertFirebaseDatabase({ key: 'users/', id: createdAccount.id, payload: createdAccount});
+    createCometChatAccount(createdAccount);
+  }
+
+  const createCometChatAccount = async createdAccount => {
+    try {
+      const authKey = `${cometChatConfig.cometChatAuthKey}`;
+      const user = new CometChat.User(createdAccount.id);
+      user.setName(createdAccount.fullname);
+      user.setAvatar(createdAccount.avatar);
+      const cometChatUser = await CometChat.createUser(user, authKey);
+      if (cometChatUser) {
+        showMessage('Info', `${fullname} was created successfully! Please sign in with your created account`);
+        setIsLoading(false);
+        setUserAvatar(null);
+      } else {
+        setIsLoading(false);
+        setUserAvatar(null);
+      }
+    } catch (error) {
+      showMessage('Error', 'Fail to create your CometChat user, please try again');
+    }
   };
 
-  const createCometChatAccount = async () => {
-    const authKey = `${cometChatConfig.cometChatAuthKey}`;
-    const user = new CometChat.User(createdAccount.current.id);
-    user.setName(createdAccount.current.fullname);
-    user.setAvatar(createdAccount.current.avatar);
-    const cometChatUser = await CometChat.createUser(user, authKey);
-    if (cometChatUser) {
-      showMessage(
-        'Info',
-        `${fullname} was created successfully! Please sign in with your created account`,
-      );
-      setIsLoading(false);
-      setUserAvatar(null);
-    } else {
-      setIsLoading(false);
-      setUserAvatar(null);
-    }
+  const showMessage = (title, message) => {
+    Alert.alert(
+      title,
+      message
+    );
   };
 
   if (isLoading) {
@@ -187,51 +182,45 @@ const SignUp = () => {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.uploadAvatarContainer}
-        onPress={selectAvatar}>
-        {!userAvatar && (
-          <>
-            <ImageGallery width={100} height={100} />
-            <Text style={styles.uploadAvatarTitle}>Upload your avatar</Text>
-          </>
-        )}
-        {userAvatar && (
-          <Image style={styles.userAvatar} source={{uri: userAvatar.uri}} />
-        )}
+      <TouchableOpacity style={styles.uploadContainer} onPress={selectAvatar}>
+        {!userAvatar && <>
+          <Image style={styles.uploadImage} source={require('../../images/image-gallery.png')} />
+          <Text style={styles.uploadTitle}>Upload your avatar</Text>
+        </>}
+        {userAvatar && <Image style={styles.userAvatar} source={{ uri: userAvatar.uri }} />}
       </TouchableOpacity>
       <TextInput
-        autoCapitalize="none"
+        autoCapitalize='none'
         onChangeText={onFullnameChanged}
         placeholder="Full name"
         placeholderTextColor="#ccc"
-        style={styles.registerInput}
+        style={styles.input}
       />
       <TextInput
-        autoCapitalize="none"
+        autoCapitalize='none'
         onChangeText={onEmailChanged}
         placeholder="Email"
         placeholderTextColor="#ccc"
-        style={styles.registerInput}
+        style={styles.input}
       />
       <TextInput
-        autoCapitalize="none"
+        autoCapitalize='none'
         onChangeText={onPasswordChanged}
         placeholder="Password"
         placeholderTextColor="#ccc"
         secureTextEntry
-        style={styles.registerInput}
+        style={styles.input}
       />
       <TextInput
-        autoCapitalize="none"
+        autoCapitalize='none'
         onChangeText={onConfirmPasswordChanged}
         placeholder="Confirm Password"
         placeholderTextColor="#ccc"
         secureTextEntry
-        style={styles.registerInput}
+        style={styles.input}
       />
       <TouchableOpacity style={styles.registerBtn} onPress={register}>
-        <Text style={styles.registerTxt}>Register</Text>
+        <Text style={styles.registerLabel}>Register</Text>
       </TouchableOpacity>
     </View>
   );
@@ -242,25 +231,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     flex: 1,
     flexDirection: 'column',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
-  uploadAvatarContainer: {
+  uploadContainer: {
     alignItems: 'center',
     display: 'flex',
     flexDirection: 'column',
     justifyContent: 'center',
+  },
+  uploadImage: {
+    height: 96,
+    width: 96,
   },
   userAvatar: {
     borderRadius: 128 / 2,
     height: 128,
     width: 128,
   },
-  uploadAvatarTitle: {
+  uploadTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    paddingVertical: 16,
+    paddingVertical: 16
   },
-  registerInput: {
+  input: {
     borderColor: '#ccc',
     borderRadius: 8,
     borderWidth: 1,
@@ -270,14 +263,14 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   registerBtn: {
-    backgroundColor: '#D9CCB9',
+    backgroundColor: '#FFFC00',
     borderRadius: 8,
     fontSize: 16,
     marginHorizontal: 24,
     marginVertical: 8,
     padding: 16,
   },
-  registerTxt: {
+  registerLabel: {
     color: '#000',
     fontWeight: 'bold',
     textAlign: 'center',
