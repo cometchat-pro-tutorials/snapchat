@@ -1,9 +1,29 @@
-import { fbConfig } from "./env";
+import {fbConfig} from './env';
 
-import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
-import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-import { getDatabase, ref as databaseRef, set as databaseSet, onValue as databaseOnValue, get as databaseGet, child as databaseChild, off as databaseOff } from "firebase/database";
+import {initializeApp} from 'firebase/app';
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from 'firebase/auth';
+import {
+  getStorage,
+  ref as storageRef,
+  uploadBytesResumable,
+  getDownloadURL,
+} from 'firebase/storage';
+import {
+  getDatabase,
+  ref as databaseRef,
+  set as databaseSet,
+  onValue as databaseOnValue,
+  get as databaseGet,
+  child as databaseChild,
+  off as databaseOff,
+  query as databaseQuery,
+  equalTo,
+  orderByChild,
+} from 'firebase/database';
 
 // TODO: Replace the following with your app's Firebase project configuration
 const firebaseConfig = {
@@ -25,16 +45,17 @@ export {
   storageRef,
   uploadBytesResumable,
   getDownloadURL,
-
   auth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-
   database,
   databaseRef,
   databaseSet,
   databaseOnValue,
   databaseGet,
   databaseChild,
-  databaseOff
+  databaseOff,
+  databaseQuery,
+  equalTo,
+  orderByChild,
 };
